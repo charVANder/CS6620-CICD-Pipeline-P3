@@ -1,0 +1,12 @@
+name: cicd_pipeline_p2_env
+channels:
+  - defaults
+  - conda-forge
+
+dependencies:
+  - python=3.10
+  - pip
+  - pip:
+    - Flask
+    - requests
+    - pytest
