@@ -1,4 +1,4 @@
-name: cicd_pipeline_p2_env
+name: cicd_pipeline_p3_env
 channels:
   - defaults
   - conda-forge
@@ -10,3 +10,4 @@ dependencies:
     - Flask
     - requests
     - pytest
+    - boto3
