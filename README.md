@@ -26,3 +26,6 @@ This is a HW assignment for CS6620 (Cloud Computing) at the Roux Institute at No
   * DELETE with no valid target (delete a nonexistent pokemon)
   * Update the Github workflows
   * Fix the README
+
+  ## References and AI Appendix
+  * tbd
