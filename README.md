@@ -73,6 +73,7 @@ It should exits with 0 if tests pass, and non-zero (1) if tests fail. Shown belo
   * ~~PUT with no valid target (put a non-existing pokemon)~~
   * ~~DELETE removes from db and S3 (delete a pokemon and check)~~
   * ~~DELETE with no valid target (delete a nonexistent pokemon)~~
-* Update the Github workflows
-* Update the README
-* Celebrate (yay!), make some tea, and play Zelda (or work on my final project... 0_o)
+* ~~Update the Github workflows~~
+* ~~Debug like crazy~~
+* ~~Update the README~~
+* ~~Celebrate (yay!), make some tea, and play Zelda (or work on my final project... 0_o)~~
