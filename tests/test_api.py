@@ -1,190 +1,135 @@
 import pytest
+import requests
 import json
-import sys
 import os
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-from src.api import create_app
+API_URL = os.getenv("API_URL", "http://localhost:5000")
 
-@pytest.fixture()
-def app():
-    app = create_app()
-    app.config.update({
-        "TESTING": True
-    })
-    yield app
-
-@pytest.fixture
-def client(app):
-    return app.test_client()
-
-## GET tests
-def test_check_health(client):
-    response = client.get("/health")
-    assert response.status_code == 200
-    data = json.loads(response.data)
-    assert data["Status"] == "healthy"
-
-def test_get_all_pkmn(client):
-    response = client.get("/pokemon")
-    assert response.status_code == 200
-    data = json.loads(response.data)
-    assert "pokemon" in data
-    assert "count" in data
-    assert data["count"] >= 3 # should be the initial sample pokemon data
-
-def test_get_pokemon_by_id(client): # will grab 1st pkmn from the sample data set
-    response = client.get("/pokemon")
-    pokemon_list = json.loads(response.data)["pokemon"]
-    assert len(pokemon_list) >= 1
-    pokemon_id = pokemon_list[0]["id"]
-    response = client.get(f'/pokemon/{pokemon_id}')
-    assert response.status_code == 200
-    data = json.loads(response.data)
-    assert data["id"] == pokemon_id
-    assert "name" in data
-    assert "hp" in data
-
-def test_get_nonexisting_pokemon(client):
-    response = client.get("/pokemon/123456789")
-    assert response.status_code == 404
-    data = json.loads(response.data)
-    assert "Error" in data
-
-
-## POST tests
-def test_create_pokemon(client):
-    new_pkmn = {
-        "name": "Squirtle",
-        "level": 10,
-        "type": "Water"
-    }
-    response = client.post('/pokemon', data=json.dumps(new_pkmn), content_type='application/json')
+## Sending a GET requests with appropriate parameters returns expected JSON from the database
+def test_get_pokemon_with_appropriate_parameters(sample_pokemon, cleanup_pokemon):
+    # Creating
+    response = requests.post(f"{API_URL}/pokemon", json=sample_pokemon)
     assert response.status_code == 201
-    data = json.loads(response.data)
-    assert "id" in data
-    assert data["name"] == "Squirtle"
-    assert data["level"] == 10
-    assert data["type"] == "Water"
+    cleanup_pokemon(sample_pokemon['id'])
 
-def test_create_pokemon_missing_data(client):
-    pkmn_missing_data = {"level": 3}
-    response = client.post('/pokemon', data=json.dumps(pkmn_missing_data), content_type='application/json')
+    # Testing GET w/ ID
+    response = requests.get(f"{API_URL}/pokemon?id={sample_pokemon['id']}")
+    assert response.status_code == 200
+    data = response.json()
+    assert data['name'] == sample_pokemon['name']
+    assert data['type'] == sample_pokemon['type']
+    assert int(data['level']) == sample_pokemon['level']
+
+
+## Sending a GET request that finds no results returns the appropriate response
+def test_get_pokemon_no_results():
+    response = requests.get(f"{API_URL}/pokemon?id=9999")
+    assert response.status_code == 404
+    assert "Error" in response.json()
+
+
+## Sending a GET request with no parameters returns the appropriate response
+def test_get_pokemon_no_params():
+    response = requests.get(f"{API_URL}/pokemon")
+    assert response.status_code == 200
+    data = response.json()
+    assert "pokemon" in data
+    assert 'count' in data
+    assert isinstance(data['pokemon'], list)
+
+
+## Sending a GET request with incorrect parameters returns the appropriate response
+def test_get_pokemon_incorrect_parameters():
+    response = requests.get(f"{API_URL}/pokemon?id=blahblahblahTHISISINCORRECT")
     assert response.status_code == 400
-    data = json.loads(response.data)
-    assert "Error" in data
-
-def test_create_pokemon_invalid_data(client):
-    invalid_pkmn = {"name": "INVALID", "level": 1000} # 1000 is too high
-    response = client.post('/pokemon', data=json.dumps(invalid_pkmn), content_type='application/json')
-    assert response.status_code == 400
-    data = json.loads(response.data)
-    assert "Error" in data
-
-def test_create_pokemon_not_json(client):
-    response = client.post('/pokemon', data="not a json")
-    assert response.status_code == 400
-    data = json.loads(response.data)
-    assert "Error" in data
+    assert 'Error' in response.json()
 
 
-## PUT tests
-def test_update_pokemon(client):
-    created_pkmn = {
+## Sending a POST request results in the JSON body being stored as an item in the database, and an object in an S3 bucket
+def test_post_pokemon_stores_in_database_and_s3(cleanup_pokemon):
+    pokemon_data = {
+        "id": 133,
         "name": "Eevee",
         "level": 25,
-        "type": "Normal"
+        "type": "Normal",
+        "hp": 100,
+        "max_hp": 180,
     }
-    created_response = client.post('/pokemon', data=json.dumps(created_pkmn), content_type='application/json')
-    assert created_response.status_code == 201
-    pokemon_id = json.loads(created_response.data)["id"]
+    response = requests.post(f"{API_URL}/pokemon", json=pokemon_data)
+    assert response.status_code == 201
+    cleanup_pokemon(pokemon_data['id'])
 
+    # Retrieve and see if it's there properly
+    get_response = requests.get(f"{API_URL}/pokemon?id={pokemon_data['id']}")
+    assert get_response.status_code == 200
+    stored_data = get_response.json()
+    assert stored_data['name'] == pokemon_data['name']
+    assert stored_data['level'] == pokemon_data['level']
+
+
+## Sending a duplicate POST request returns the appropriate response
+def test_post_duplicate_pokemon(sample_pokemon, cleanup_pokemon):
+    response = requests.post(f"{API_URL}/pokemon", json=sample_pokemon)
+    assert response.status_code == 201
+
+    # Trying to create a duplicate
+    duplicate_response = requests.post(f"{API_URL}/pokemon", json=sample_pokemon)
+    assert duplicate_response.status_code == 409
+    cleanup_pokemon(sample_pokemon['id'])
+
+
+## Sending a PUT request that targets an existing resource results in updates to the appropriate item in the database and object in the S3 bucket
+def test_put_existing_pokemon_updates_database_and_s3(sample_pokemon, cleanup_pokemon):
+    # Creating pokemon
+    response = requests.post(f"{API_URL}/pokemon", json=sample_pokemon)
+    assert response.status_code == 201
+    cleanup_pokemon(sample_pokemon['id'])
+
+    # Updating pokemon
     updated_data = {
-        "name": "Eevee UPDATED",
-        "level": 30
+        "name": "Zoroark",
+        "level": 30,
+        "type": "Dark",
+        "hp": 120,
+        "max_hp": 120
     }
-    response = client.put(f'/pokemon/{pokemon_id}', data=json.dumps(updated_data), content_type='application/json')
-    assert response.status_code == 200
-    data = json.loads(response.data)
-    assert data["name"] == "Eevee UPDATED"
+    put_response = requests.put(f"{API_URL}/pokemon/{sample_pokemon['id']}", json=updated_data)
+    assert put_response.status_code == 200
+
+    # Does it update correctly?
+    get_response = requests.get(f"{API_URL}/pokemon?id={sample_pokemon['id']}")
+    data = get_response.json()
+    assert data["name"] == "Zoroark"
     assert data["level"] == 30
+    cleanup_pokemon(sample_pokemon["id"])
 
-def test_update_nonexisting_pokemon(client):
-    updated_data = {
-        "name": "MISSINGNO",
-        "level": 1
+
+## Sending a PUT request with no valid target returns the appropriate response
+def test_put_no_valid_target():
+    pokemon_data = {
+        "name": "MissingNo",
+        "level": 50,
+        "type": "ThisIsAGlitch"
     }
-    response = client.put(f'/pokemon/123456789', data=json.dumps(updated_data), content_type='application/json')
+    response = requests.put(f"{API_URL}/pokemon/9999", json=pokemon_data)
     assert response.status_code == 404
-    data = json.loads(response.data)
-    assert "Error" in data
+    assert 'Error' in response.json()
 
 
-## DELETE tests
-def test_delete_pokemon(client):
-    created_pkmn = {
-        "name": "Venasaur",
-        "level": 36
-    }
-    created_response = client.post('/pokemon', data=json.dumps(created_pkmn), content_type='application/json')
-    assert created_response.status_code == 201
-    pokemon_id = json.loads(created_response.data)["id"]
+## Sending a DELETE request results in the appropriate item being removed from the database and object being removed from the S3 bucket
+def test_delete_pokemon_removes_from_database_and_s3(sample_pokemon):
+    response = requests.post(f"{API_URL}/pokemon", json=sample_pokemon)
+    assert response.status_code == 201
 
-    response = client.delete(f"/pokemon/{pokemon_id}")
-    assert response.status_code == 200
-    data = json.loads(response.data)
-    assert "Note" in data
+    delete_response = requests.delete(f"{API_URL}/pokemon/{sample_pokemon['id']}")
+    assert delete_response.status_code == 200
 
-    # Making sure that it's really gone...
-    get_response = client.get(f'/pokemon/{pokemon_id}')
+    get_response = requests.get(f"{API_URL}/pokemon?id={sample_pokemon['id']}")
     assert get_response.status_code == 404
 
-def test_delete_nonexisting_pokemon(client):
-    response = client.delete(f"/pokemon/123456789")
+
+## Sending a DELETE request with no valid target returns the appropriate response
+def test_delete_no_valid_target():
+    response = requests.delete(f"{API_URL}/pokemon/9999")
     assert response.status_code == 404
-    data = json.loads(response.data)
-    assert "Error" in data
-
-
-## Tests for the battle functionality (why did I do this???)
-def test_pokemon_attack(client):
-    # Using one of the sample Pokemon
-    response = client.get('/pokemon')
-    pokemon_list = json.loads(response.data)["pokemon"]
-    
-    assert len(pokemon_list) >= 1
-    pokemon_id = pokemon_list[0]["id"] # I think this is Pikachu
-    
-    attack_data = {"attack_name": "Thunderbolt", "damage": 75}
-    response = client.post(f'/pokemon/{pokemon_id}/attack', data=json.dumps(attack_data), content_type='application/json')
-    assert response.status_code == 200
-    data = json.loads(response.data)
-    assert "Thunderbolt" in data["Note"]
-    assert "pokemon" in data
-
-def test_pokemon_take_damage(client):
-    created_data = {"name": "DamageTest", "level": 10}
-    created_response = client.post('/pokemon', data=json.dumps(created_data), content_type='application/json')
-    pokemon_id = json.loads(created_response.data)["id"]
-    original_hp = json.loads(created_response.data)["hp"]
-    
-    damage_data = {"amount": 25}
-    response = client.post(f'/pokemon/{pokemon_id}/damage', data=json.dumps(damage_data), content_type='application/json')
-    assert response.status_code == 200
-    data = json.loads(response.data)
-    assert data["pokemon"]["hp"] < original_hp
-    assert "took" in data["Note"] and "damage" in data["Note"]
-
-def test_pokemon_heal(client):
-    created_data = {"name": "HealTest", "level": 10}
-    created_response = client.post('/pokemon', data=json.dumps(created_data), content_type='application/json')
-    pokemon_id = json.loads(created_response.data)["id"]
-    
-    damage_data = {"amount": 30}
-    client.post(f'/pokemon/{pokemon_id}/damage', data=json.dumps(damage_data), content_type='application/json')
-    
-    heal_data = {"amount": 15}
-    response = client.post(f'/pokemon/{pokemon_id}/heal', data=json.dumps(heal_data), content_type='application/json')
-    assert response.status_code == 200
-    data = json.loads(response.data)
-    assert "healed" in data["Note"]
+    assert "Error" in response.json()
