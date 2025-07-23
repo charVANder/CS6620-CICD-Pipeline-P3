@@ -1,7 +1,10 @@
 # CS6620-CICD-Pipeline-p3
 This is a HW assignment for CS6620 (Cloud Computing) at the Roux Institute at Northeastern. It is a simple Pokemon-themed cloud RestAPI (with GET, PUT, POST, and DELETE endpoints) built on top of the original Pokemon class from the Part 2 assignment found [here](https://github.com/charVANder/CS6620-CICD-Pipeline-p2) (Part 1 can be found [here](https://github.com/charVANder/CS6620-CICD-Pipeline-p1)). Demonstrates test-driven development, Docker container orchestration, CRUD operations, and CI/CD workflows. For the sake of addressing the current assignment with simplicity, the previous battle mechanics were removed, focusing on turning the API into a viable cloud architecture implementation. CRUD operations were added to function in a DynamoDB table and an S3 bucket. Localstack was used to run a mock of AWS as part of the application stack. Two docker compose files with corresponding shell scripts were created to run the stack (until manually stopped) and run the tests.
 
-A GitHub Actions workflow runs tests automatically whenever code is pushed, a pull request is opened, or the workflow is triggered manually. Test workflow can be triggered manually by going to the Actions tab and clicking on the Run Workflow button under the Pokemon Tests workflow. You can view the configuration in `.github/workflows/main.yml`.
+A GitHub Actions workflow runs tests automatically whenever code is pushed, a pull request is opened, or the workflow is triggered manually. Test workflow can be triggered manually by going to the Actions tab and clicking on the Run Workflow button under the Pokemon Tests workflow. You can view the configuration in `.github/workflows/main.yml`. Shown below is an image of a few workflow runs (on push and upon manual triggering) as proof that the workflow is running correctly:
+<p float="left", align="center">
+  <img src="figs/workflows.png" width="550"/>
+</p>
 
 ## Running the Stack
 Assuming that you have Docker running, here is how to run the stack until manually stopped:
@@ -25,7 +28,7 @@ Similarly, if you go to http://localhost:5001/pokemon, then you should see somet
 
 Shown below is an image of the stack being built successfully:
 <p float="left", align="center">
-  <img src="figs/stack.png" width="400"/>
+  <img src="figs/stack.png" width="550"/>
 </p>
 
 ## Running the Tests
@@ -36,7 +39,7 @@ chmod +x scripts/run_tests.sh
 ```
 It should exits with 0 if tests pass, and non-zero (1) if tests fail. Shown below is an image of this working successfully:
 <p float="left", align="center">
-  <img src="figs/tests.png" width="500"/>
+  <img src="figs/tests.png" width="550"/>
 </p>
 
 
@@ -45,8 +48,9 @@ It should exits with 0 if tests pass, and non-zero (1) if tests fail. Shown belo
 * Error handling with boto3 - https://boto3.amazonaws.com/v1/documentation/api/latest/guide/error-handling.html
 * DynamoDB boto3 client functions - https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/dynamodb.html
 * S3 boto3 client functions - https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/dynamodb.html
-* Conftest and pytest fixtures - https://docs.pytest.org/en/6.2.x/fixture.html
+* Conftest and Pytest fixtures - https://docs.pytest.org/en/6.2.x/fixture.html
 * LocalStack docs - https://docs.localstack.cloud/aws/getting-started/installation/
+* Asked AI how to install Docker Compose on a Github Actions workflow - https://claude.ai/share/f735d8d5-aaf6-4504-9967-485bbe40b7a6
   
   ---
 
